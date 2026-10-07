@@ -1,0 +1,6 @@
+{
+  "name": "ExamForm Pro",
+  "description": "منصة اختبارات احترافية شبيهة بنماذج جوجل مع حماية ضد لقطات الشاشة والنسخ، وقوالب أسئلة، وتصدير النتائج إلى إكسيل ولوحة تحكم متكاملة",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
