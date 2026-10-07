@@ -164,17 +164,17 @@ fun HomeScreen(
                 BrandingHeader(branding = branding)
             }
 
-            // Firebase Cloud Sync & Google Sign-In Card
+            // Direct Ready Mode Banner (No Google Console / Sign-in required)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
                     ),
                     border = androidx.compose.foundation.BorderStroke(
                         1.dp,
-                        if (currentUser != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                     )
                 ) {
                     Row(
@@ -189,37 +189,24 @@ fun HomeScreen(
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(
-                                imageVector = if (currentUser != null) Icons.Default.CloudDone else Icons.Default.Cloud,
-                                contentDescription = "سحابة Firebase",
-                                tint = if (currentUser != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(24.dp)
+                                imageVector = Icons.Default.CloudDone,
+                                contentDescription = "الوضع المباشر",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(26.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
-                                if (currentUser != null) {
-                                    Text(
-                                        text = "متصل بسحابة Firebase",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        text = currentUser?.displayName ?: currentUser?.email ?: "",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                } else {
-                                    Text(
-                                        text = "مزامنة سحابة Firebase",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
-                                    )
-                                    Text(
-                                        text = "سجل دخولك لحفظ الاختبارات والنتائج سحابياً",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                                Text(
+                                    text = "المنظومة جاهزة للعمل المباشر ⚡",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "تم تخطي التسجيل في Google Console • تخزين آمن وحفظ فوري وتصدير إكسيل",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
 
@@ -231,28 +218,9 @@ fun HomeScreen(
                                     }
                                 }
                             ) {
-                                Icon(imageVector = Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(imageVector = Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("خروج", fontSize = 12.sp)
-                            }
-                        } else {
-                            Button(
-                                onClick = {
-                                    authError = null
-                                    GoogleAuthHelper.signInWithGoogle(
-                                        context = context,
-                                        scope = coroutineScope,
-                                        onSuccess = { viewModel.refreshAuthState() },
-                                        onError = { authError = it }
-                                    )
-                                },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                )
-                            ) {
-                                Icon(imageVector = Icons.AutoMirrored.Filled.Login, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("تسجيل الدخول", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("خروج", fontSize = 11.sp)
                             }
                         }
                     }

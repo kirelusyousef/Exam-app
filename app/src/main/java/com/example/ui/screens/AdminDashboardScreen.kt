@@ -183,6 +183,7 @@ fun AdminDashboardScreen(
                     selectedFilter = selectedExamFilter,
                     onFilterChanged = { selectedExamFilter = it },
                     onExportExcel = { viewModel.exportToExcel(selectedExamFilter) },
+                    onExportXlsx = { viewModel.exportFirestoreResponsesToXlsx(selectedExamFilter) },
                     onSelectSubmission = { subId -> viewModel.navigateTo(AppScreen.SubmissionDetail(subId)) },
                     onDeleteSubmission = { sub -> viewModel.deleteSubmission(sub) }
                 )
@@ -261,6 +262,7 @@ fun ResultsTab(
     selectedFilter: String?,
     onFilterChanged: (String?) -> Unit,
     onExportExcel: () -> Unit,
+    onExportXlsx: () -> Unit,
     onSelectSubmission: (String) -> Unit,
     onDeleteSubmission: (SubmissionEntity) -> Unit
 ) {
@@ -289,37 +291,48 @@ fun ResultsTab(
             }
         }
 
-        // Export to Excel Banner
+        // Export to Excel Banner (.xlsx from Firestore + CSV)
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = SuccessGreen.copy(alpha = 0.1f)
+                    containerColor = SuccessGreen.copy(alpha = 0.08f)
                 ),
                 shape = RoundedCornerShape(14.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, SuccessGreen.copy(alpha = 0.3f))
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(14.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("تصدير النتائج إلى ملف Excel", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Text("بصيغة CSV تدعم اللغة العربية UTF-8 بالكامل بدون تشويه", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-
-                    Button(
-                        onClick = onExportExcel,
-                        colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.testTag("export_excel_button")
+                    Text("تصدير النتائج إلى مصنف Excel (.xlsx)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("سحب استجابات الطلاب من سحابة Firestore وتوليد ملف Excel (.xlsx) حقيقي جاهز للتحميل والفتح المباشر", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("تصدير إكسيل", fontWeight = FontWeight.Bold)
+                        Button(
+                            onClick = onExportXlsx,
+                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("export_xlsx_firestore_button")
+                        ) {
+                            Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("تنزيل ملف .xlsx", fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = onExportExcel,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.testTag("export_csv_button")
+                        ) {
+                            Text("تصدير CSV")
+                        }
                     }
                 }
             }

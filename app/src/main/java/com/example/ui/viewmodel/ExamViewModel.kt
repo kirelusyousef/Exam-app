@@ -489,6 +489,30 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Collects quiz response data from Cloud Firestore and generates a real .xlsx Excel file for download.
+     */
+    fun exportFirestoreResponsesToXlsx(examIdFilter: String? = null) {
+        viewModelScope.launch {
+            val result = com.example.export.FirestoreQuizExcelHelper.fetchResponsesAndGenerateXlsx(
+                context = getApplication(),
+                examIdFilter = examIdFilter,
+                fallbackLocalData = allSubmissions.value
+            )
+            result.onSuccess { file ->
+                com.example.export.FirestoreQuizExcelHelper.openOrShareXlsx(getApplication(), file)
+                val uri = androidx.core.content.FileProvider.getUriForFile(
+                    getApplication(),
+                    "${getApplication<Application>().packageName}.fileprovider",
+                    file
+                )
+                _exportResult.value = ExportResult.Success(file, uri, allSubmissions.value.size)
+            }.onFailure { err ->
+                _exportResult.value = ExportResult.Error(err.localizedMessage ?: "تعذر استخراج ملف .xlsx")
+            }
+        }
+    }
+
     fun dismissExportResult() {
         _exportResult.value = null
     }

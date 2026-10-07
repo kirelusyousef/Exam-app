@@ -17,3 +17,8 @@ local.properties
 .env
 debug.keystore
 *-debug.log
+
+# Ensure APK release files are tracked for GitHub
+!/apk/
+!/apk/*.apk
+!/ExamFormPro.apk
