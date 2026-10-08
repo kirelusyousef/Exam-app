@@ -121,11 +121,31 @@ fun ExamTakerScreen(
         }
     }
 
-    // Anti-Cheating 2: App-switching and focus-loss monitor (Detects cheating attempts)
-    DisposableEffect(lifecycleOwner) {
+    // Anti-Cheating 2: Immediate termination on app switching, minimization, or split screen
+    DisposableEffect(lifecycleOwner, activity) {
+        // Initial check for split-screen upon opening
+        if (activity?.isInMultiWindowMode == true) {
+            viewModel.terminateExamDueToSecurityViolation(
+                "تم إنهاء الاختبار لأن وضع تقسيم الشاشة نشط وغير مسموح به إطلاقاً!"
+            )
+        }
+
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_PAUSE) {
-                viewModel.recordSecurityViolation("تم رصد الخروج من شاشة الامتحان أو التبديل بين التطبيقات!")
+            when (event) {
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
+                    // Instantly submit and close exam upon leaving the app or moving it to background
+                    viewModel.terminateExamDueToSecurityViolation(
+                        "تم إنهاء الاختبار وإغلاقه فوراً بسبب مغادرة شاشة الاختبار أو التبديل إلى تطبيق آخر!"
+                    )
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    if (activity?.isInMultiWindowMode == true) {
+                        viewModel.terminateExamDueToSecurityViolation(
+                            "تم إنهاء الاختبار لأن وضع تقسيم الشاشة نشط وغير مسموح به!"
+                        )
+                    }
+                }
+                else -> {}
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)

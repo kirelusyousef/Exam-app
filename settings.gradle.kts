@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "ExamForm Pro"
+rootProject.name = "Shebino Exam"
 
 include(":app")

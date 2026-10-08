@@ -265,6 +265,19 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Immediately terminates the exam session when a critical security violation occurs
+     * (such as split-screen attempt, multi-window mode, switching to another app, or losing window focus).
+     * Automatically submits the student's exam, saves the violation flag, and syncs to database.
+     */
+    fun terminateExamDueToSecurityViolation(reason: String) {
+        if (_takingExam.value == null) return
+        _violationsCount.value += 1
+        _lastViolationMessage.value = reason
+        _showViolationAlert.value = true
+        submitExam()
+    }
+
     fun dismissViolationAlert() {
         _showViolationAlert.value = false
     }
