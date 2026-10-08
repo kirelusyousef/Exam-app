@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,19 +22,23 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
-import androidx.compose.material.icons.automirrored.filled.Login
-import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
-import androidx.compose.material.icons.filled.HourglassBottom
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudSync
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -52,23 +60,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.CloudDone
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.rememberCoroutineScope
-import com.example.auth.GoogleAuthHelper
 import com.example.data.model.ExamEntity
 import com.example.ui.components.AdminPinDialog
-import com.example.ui.components.BrandingHeader
 import com.example.ui.viewmodel.AppScreen
 import com.example.ui.viewmodel.ExamViewModel
 
+/**
+ * Clean, lightweight home screen focusing EXCLUSIVELY on exams as requested.
+ * All extraneous banners, metric boxes, and slogans have been removed.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -76,13 +82,8 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val exams by viewModel.allExams.collectAsState()
-    val submissions by viewModel.allSubmissions.collectAsState()
     val branding by viewModel.appBranding.collectAsState()
-    val currentUser by viewModel.currentUser.collectAsState()
-
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    var authError by remember { mutableStateOf<String?>(null) }
+    val isOnlineSyncing by viewModel.isOnlineSyncing.collectAsState()
 
     var showPinDialog by remember { mutableStateOf(false) }
     var selectedExamToTake by remember { mutableStateOf<ExamEntity?>(null) }
@@ -90,25 +91,95 @@ fun HomeScreen(
     var studentCodeInput by remember { mutableStateOf("") }
     var studentInputError by remember { mutableStateOf(false) }
 
+    // Excel Import feedback state
+    var importResultMessage by remember { mutableStateOf<String?>(null) }
+    var isImportSuccess by remember { mutableStateOf(false) }
+
+    // Excel file picker launcher (.xlsx and .csv)
+    val excelFilePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.importExamFromExcel(uri) { success, message ->
+                isImportSuccess = success
+                importResultMessage = message
+            }
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = branding?.appName ?: "ExamForm Pro",
+                            text = "الامتحانات",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp
+                            fontSize = 20.sp,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                        Text(
-                            text = "منصة النماذج والامتحانات الذكية",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = CircleShape
+                        ) {
+                            Text(
+                                text = "${exams.size}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 },
                 actions = {
+                    // Online Sync Button
+                    IconButton(
+                        onClick = { viewModel.syncOnlineData() },
+                        enabled = !isOnlineSyncing,
+                        modifier = Modifier.testTag("sync_online_button")
+                    ) {
+                        if (isOnlineSyncing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.CloudSync,
+                                contentDescription = "تحديث ومزامنة سحابية أونلاين",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    // Import Exam from Excel Button
+                    IconButton(
+                        onClick = {
+                            excelFilePicker.launch(
+                                arrayOf(
+                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    "text/csv",
+                                    "text/comma-separated-values",
+                                    "application/vnd.ms-excel",
+                                    "*/*"
+                                )
+                            )
+                        },
+                        modifier = Modifier.testTag("import_excel_home_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.UploadFile,
+                            contentDescription = "رفع امتحان من إكسيل",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    // Admin Dashboard Button
                     IconButton(
                         onClick = {
                             if (viewModel.isAdminUnlocked.value) {
@@ -157,144 +228,10 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
                 Spacer(modifier = Modifier.height(4.dp))
-                BrandingHeader(branding = branding)
-            }
-
-            // Direct Ready Mode Banner (No Google Console / Sign-in required)
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CloudDone,
-                                contentDescription = "الوضع المباشر",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(26.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = "المنظومة جاهزة للعمل المباشر ⚡",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = "تم تخطي التسجيل في Google Console • تخزين آمن وحفظ فوري وتصدير إكسيل",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        if (currentUser != null) {
-                            OutlinedButton(
-                                onClick = {
-                                    GoogleAuthHelper.signOut(context, coroutineScope) {
-                                        viewModel.refreshAuthState()
-                                    }
-                                }
-                            ) {
-                                Icon(imageVector = Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("خروج", fontSize = 11.sp)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Quick Stats Banner
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Card(
-                        modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("الامتحانات المتاحة", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("${exams.size}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-
-                    Card(
-                        modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("إجمالي الإجابات", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("${submissions.size}", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
-                        }
-                    }
-
-                    Card(
-                        modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("حماية الشاشة", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("مفعلة 🛡️", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                }
-            }
-
-            // Section Header
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "نماذج الاختبارات المتاحة للطلاب",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "${exams.size} اختبار",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
 
             if (exams.isEmpty()) {
@@ -302,38 +239,65 @@ fun HomeScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 24.dp),
+                            .padding(vertical = 32.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                        )
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(24.dp),
+                                .padding(32.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.Assignment,
                                 contentDescription = null,
-                                modifier = Modifier.size(48.dp),
+                                modifier = Modifier.size(56.dp),
                                 tint = MaterialTheme.colorScheme.primary
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(14.dp))
                             Text(
-                                text = "لا توجد اختبارات متاحة حالياً",
-                                fontWeight = FontWeight.SemiBold
+                                text = "لا توجد امتحانات متاحة حالياً",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
                             )
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "اضغط على زر '+' بالأسفل لإنشاء أول نموذج اختبار بقوالب جاهزة",
-                                fontSize = 12.sp,
+                                text = "يمكنك إنشاء نموذج اختبار جديد أو رفعه مباشرة عبر ملف Excel (.xlsx)",
+                                fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(modifier = Modifier.height(18.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Button(
+                                    onClick = {
+                                        viewModel.initExamBuilder(null)
+                                        viewModel.navigateTo(AppScreen.BuildExam(null))
+                                    }
+                                ) {
+                                    Icon(imageVector = Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("إنشاء اختبار")
+                                }
+                                OutlinedButton(
+                                    onClick = {
+                                        excelFilePicker.launch(arrayOf("*/*"))
+                                    }
+                                ) {
+                                    Icon(imageVector = Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("رفع من Excel")
+                                }
+                            }
                         }
                     }
                 }
             } else {
-                items(exams) { exam ->
+                // EXCLUSIVELY display exam cards
+                items(exams, key = { it.id }) { exam ->
                     ExamCard(
                         exam = exam,
                         onTakeExam = {
@@ -348,7 +312,7 @@ fun HomeScreen(
             }
 
             item {
-                Spacer(modifier = Modifier.height(60.dp))
+                Spacer(modifier = Modifier.height(80.dp))
             }
         }
     }
@@ -362,6 +326,33 @@ fun HomeScreen(
                 viewModel.navigateTo(AppScreen.AdminDashboard)
             },
             checkPin = { pin -> viewModel.checkAdminPin(pin) }
+        )
+    }
+
+    // Excel Import Result Dialog
+    importResultMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { importResultMessage = null },
+            icon = {
+                Icon(
+                    imageVector = if (isImportSuccess) Icons.Default.CheckCircle else Icons.Default.UploadFile,
+                    contentDescription = null,
+                    tint = if (isImportSuccess) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = if (isImportSuccess) "تم استيراد الامتحان ورفعه سحابياً!" else "تنبيه استيراد Excel",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = { Text(text = message) },
+            confirmButton = {
+                Button(onClick = { importResultMessage = null }) {
+                    Text("حسناً")
+                }
+            }
         )
     }
 
@@ -401,7 +392,7 @@ fun HomeScreen(
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
-                            text = "🛡️ ملاحظة أمنية: سيتم تفعيل حماية لقطات الشاشة ومنع النسخ، وسيتم تسجيل أي خروج من التطبيق كمحاولة غش.",
+                            text = "🛡️ ملاحظة أمنية: تمنع المنظومة لقطات الشاشة أو النسخ، وتُسجل أي مغادرة للاختبار تلقائياً في النتائج.",
                             fontSize = 11.sp,
                             modifier = Modifier.padding(8.dp),
                             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -449,7 +440,7 @@ fun HomeScreen(
                     },
                     modifier = Modifier.testTag("start_exam_button")
                 ) {
-                    Text("بدء الامتحان الآن")
+                    Text("بدء الاختبار الآن")
                 }
             },
             dismissButton = {
@@ -476,7 +467,7 @@ fun ExamCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -485,23 +476,38 @@ fun ExamCard(
                 verticalAlignment = Alignment.Top
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(6.dp)
-                    ) {
-                        Text(
-                            text = exam.category,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = exam.category,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "أونلاين ☁️",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = exam.title,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -521,7 +527,7 @@ fun ExamCard(
             // Badges row
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -548,7 +554,7 @@ fun ExamCard(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "محمي من النسخ",
+                        text = "محمي من لقطات الشاشة",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

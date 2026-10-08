@@ -13,8 +13,12 @@ import com.example.data.model.StudentEntity
 import com.example.data.model.SubmissionEntity
 import com.example.data.repository.ExamRepository
 import com.example.export.ExcelExporter
+import com.example.export.ExcelExamImporter
 import com.example.export.ExportResult
 import com.example.data.remote.FirebaseSyncService
+import android.content.Intent
+import android.net.Uri
+import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.Job
@@ -46,6 +50,9 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentUser = MutableStateFlow<FirebaseUser?>(FirebaseAuth.getInstance().currentUser)
     val currentUser: StateFlow<FirebaseUser?> = _currentUser.asStateFlow()
 
+    private val _isOnlineSyncing = MutableStateFlow(false)
+    val isOnlineSyncing: StateFlow<Boolean> = _isOnlineSyncing.asStateFlow()
+
     fun refreshAuthState() {
         _currentUser.value = FirebaseAuth.getInstance().currentUser
     }
@@ -57,6 +64,39 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.initializeDefaultsIfNeeded()
             repository.seedSampleDataIfEmpty()
+            // Pull online exams and submissions from Firestore
+            syncOnlineData()
+        }
+    }
+
+    /**
+     * Synchronizes online exams and test results from Cloud Firestore into the app.
+     */
+    fun syncOnlineData(onFinished: (() -> Unit)? = null) {
+        viewModelScope.launch {
+            _isOnlineSyncing.value = true
+            try {
+                // 1. Fetch online exams
+                val examsResult = firebaseSync.fetchOnlineExams()
+                examsResult.onSuccess { onlineList ->
+                    onlineList.forEach { (exam, questions) ->
+                        repository.saveExamWithQuestions(exam, questions)
+                    }
+                }
+
+                // 2. Fetch online submissions
+                val subsResult = firebaseSync.fetchOnlineSubmissions()
+                subsResult.onSuccess { onlineSubs ->
+                    onlineSubs.forEach { sub ->
+                        repository.saveSubmission(sub)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ExamViewModel", "Error syncing online: ${e.message}", e)
+            } finally {
+                _isOnlineSyncing.value = false
+                onFinished?.invoke()
+            }
         }
     }
 
@@ -314,7 +354,8 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
             )
 
             repository.saveSubmission(submission)
-            if (firebaseSync.isUserSignedIn) {
+            // Upload result to Cloud Firestore online database immediately
+            viewModelScope.launch {
                 firebaseSync.syncSubmissionToCloud(submission)
             }
             onComplete?.invoke(submissionId)
@@ -418,10 +459,53 @@ class ExamViewModel(application: Application) : AndroidViewModel(application) {
             val exam = _builderExam.value
             val questions = _builderQuestions.value
             repository.saveExamWithQuestions(exam, questions)
-            if (firebaseSync.isUserSignedIn) {
-                firebaseSync.syncExamToCloud(exam)
-            }
+            // Upload to online Firestore database with all questions
+            firebaseSync.syncExamToCloud(exam, questions)
             onSaved()
+        }
+    }
+
+    /**
+     * Imports an exam from an Excel or CSV file URI and saves it locally and online to Firestore.
+     */
+    fun importExamFromExcel(uri: Uri, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val res = ExcelExamImporter.importExamFromUri(getApplication(), uri)
+            res.onSuccess { parsed ->
+                repository.saveExamWithQuestions(parsed.exam, parsed.questions)
+                // Upload directly to online Firestore database
+                firebaseSync.syncExamToCloud(parsed.exam, parsed.questions)
+                onResult(true, "تم استيراد الاختبار (${parsed.exam.title}) بواقع ${parsed.questions.size} سؤال، ورُفع على الداتا بيز السحابية بنجاح!")
+            }.onFailure { err ->
+                onResult(false, err.localizedMessage ?: "فشل استيراد ملف الإكسيل")
+            }
+        }
+    }
+
+    /**
+     * Shares a sample Excel template so the teacher knows the exact file format.
+     */
+    fun shareSampleExcelTemplate() {
+        try {
+            val file = ExcelExamImporter.createSampleTemplateFile(getApplication())
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                getApplication(),
+                "${getApplication<Application>().packageName}.fileprovider",
+                file
+            )
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/csv"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "قالب امتحان إكسيل فارغ")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            val chooser = Intent.createChooser(intent, "مشاركة قالب إكسيل النموذجي").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            getApplication<Application>().startActivity(chooser)
+        } catch (e: Exception) {
+            Log.e("ExamViewModel", "Failed to share template: ${e.message}", e)
         }
     }
 

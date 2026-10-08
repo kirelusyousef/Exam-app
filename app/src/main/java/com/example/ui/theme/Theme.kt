@@ -1,15 +1,9 @@
 package com.example.ui.theme
 
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 
 fun parseHexColor(hexString: String?, defaultColor: Color): Color {
     if (hexString.isNullOrBlank()) return defaultColor
@@ -28,11 +22,15 @@ fun parseHexColor(hexString: String?, defaultColor: Color): Color {
     }
 }
 
+/**
+ * Modern, bright and clean Google Forms light theme as requested.
+ * Defaults to light mode for an inviting, clear examination experience.
+ */
 @Composable
 fun MyApplicationTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = false, // Forced light theme per user request
     primaryHexColor: String? = null,
-    dynamicColor: Boolean = false, // prefer app brand color
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val primaryColor = parseHexColor(primaryHexColor, FormPurplePrimary)
@@ -44,36 +42,22 @@ fun MyApplicationTheme(
         onPrimaryContainer = primaryColor,
         secondary = FormPurpleSecondary,
         onSecondary = Color.White,
+        secondaryContainer = Color(0xFFEDE7F6),
+        onSecondaryContainer = Color(0xFF311B92),
         tertiary = FormPurpleTertiary,
-        background = Color(0xFFF6F8FC),
-        surface = Color(0xFFFFFFFF),
-        onBackground = TextPrimary,
-        onSurface = TextPrimary,
-        surfaceVariant = Color(0xFFF1F3F4),
-        onSurfaceVariant = TextSecondary,
-        outline = Color(0xFFDADCE0)
+        onTertiary = Color.White,
+        background = Color(0xFFF8F9FD), // Crisp light background
+        surface = Color(0xFFFFFFFF),    // Clean pure white surface
+        onBackground = Color(0xFF1F1F1F),
+        onSurface = Color(0xFF1F1F1F),
+        surfaceVariant = Color(0xFFF3F4F9),
+        onSurfaceVariant = Color(0xFF5F6368),
+        outline = Color(0xFFE2E4E9),
+        outlineVariant = Color(0xFFECEEF2)
     )
-
-    val darkScheme = darkColorScheme(
-        primary = primaryColor,
-        onPrimary = Color.White,
-        primaryContainer = primaryColor.copy(alpha = 0.25f),
-        onPrimaryContainer = Color.White,
-        secondary = FormPurpleTertiary,
-        onSecondary = Color.White,
-        background = Color(0xFF131314),
-        surface = Color(0xFF1E1F20),
-        onBackground = Color(0xFFE3E3E3),
-        onSurface = Color(0xFFE3E3E3),
-        surfaceVariant = Color(0xFF282A2C),
-        onSurfaceVariant = Color(0xFFC4C7C5),
-        outline = Color(0xFF444746)
-    )
-
-    val colorScheme = if (darkTheme) darkScheme else lightScheme
 
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = lightScheme,
         typography = Typography,
         content = content
     )

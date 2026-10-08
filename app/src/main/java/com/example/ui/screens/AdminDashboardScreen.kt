@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,16 +26,19 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -114,6 +120,18 @@ fun AdminDashboardScreen(
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
+    val excelFilePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.importExamFromExcel(uri) { success, msg ->
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(msg)
+                }
+            }
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -184,6 +202,25 @@ fun AdminDashboardScreen(
                     onFilterChanged = { selectedExamFilter = it },
                     onExportExcel = { viewModel.exportToExcel(selectedExamFilter) },
                     onExportXlsx = { viewModel.exportFirestoreResponsesToXlsx(selectedExamFilter) },
+                    onImportExcelExam = {
+                        excelFilePicker.launch(
+                            arrayOf(
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                "text/csv",
+                                "text/comma-separated-values",
+                                "application/vnd.ms-excel",
+                                "*/*"
+                            )
+                        )
+                    },
+                    onShareExcelTemplate = { viewModel.shareSampleExcelTemplate() },
+                    onSyncOnlineData = {
+                        viewModel.syncOnlineData {
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar("تمت مزامنة الامتحانات والنتائج مع سحابة Firestore أونلاين!")
+                            }
+                        }
+                    },
                     onSelectSubmission = { subId -> viewModel.navigateTo(AppScreen.SubmissionDetail(subId)) },
                     onDeleteSubmission = { sub -> viewModel.deleteSubmission(sub) }
                 )
@@ -263,6 +300,9 @@ fun ResultsTab(
     onFilterChanged: (String?) -> Unit,
     onExportExcel: () -> Unit,
     onExportXlsx: () -> Unit,
+    onImportExcelExam: () -> Unit,
+    onShareExcelTemplate: () -> Unit,
+    onSyncOnlineData: () -> Unit,
     onSelectSubmission: (String) -> Unit,
     onDeleteSubmission: (SubmissionEntity) -> Unit
 ) {
@@ -288,6 +328,80 @@ fun ResultsTab(
                 StatCard(title = "المشاركات", value = "$totalCount", color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
                 StatCard(title = "متوسط الدرجات", value = "$avgScore%", color = MaterialTheme.colorScheme.secondary, modifier = Modifier.weight(1f))
                 StatCard(title = "نسبة النجاح", value = "$passRate%", color = SuccessGreen, modifier = Modifier.weight(1f))
+            }
+        }
+
+        // Online Cloud Operations & Excel Exam Upload
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                ),
+                shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CloudSync,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("الربط السحابي ورفع الامتحانات Excel", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text("Firestore أونلاين ☁️", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("رفع الاختبارات آلياً من ملفات Excel (.xlsx / .csv) ومزامنة نتائج الطلاب السحابية فورياً", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = onImportExcelExam,
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1.3f)
+                        ) {
+                            Icon(imageVector = Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("رفع امتحان إكسيل", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = onShareExcelTemplate,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("قالب فارغ", fontSize = 12.sp)
+                        }
+
+                        IconButton(
+                            onClick = onSyncOnlineData,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = "تحديث السحابة", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
             }
         }
 

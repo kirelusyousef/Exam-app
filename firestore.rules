@@ -2,47 +2,24 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    function isValidUser(data) {
-      return data.keys().hasAll(['userId', 'displayName', 'email'])
-        && data.userId is string
-        && data.displayName is string
-        && data.email is string;
-    }
-
-    function isValidExam(data) {
-      return data.keys().hasAll(['id', 'ownerId', 'title'])
-        && data.id is string
-        && data.ownerId is string
-        && data.title is string;
-    }
-
-    function isValidSubmission(data) {
-      return data.keys().hasAll(['id', 'examId', 'studentId', 'studentName', 'score', 'totalPoints'])
-        && data.id is string
-        && data.examId is string
-        && data.studentId is string
-        && data.studentName is string
-        && data.score is int
-        && data.totalPoints is int;
-    }
-
-    match /users/{userId} {
-      allow read, write: if isOwner(userId);
-
-      match /exams/{examId} {
-        allow read, write: if isOwner(userId);
+    // Online Exams: Accessible so exams can be uploaded, shared and taken online
+    match /exams/{examId} {
+      allow read, write: if true;
+      match /questions/{questionId} {
+        allow read, write: if true;
       }
+    }
 
-      match /submissions/{submissionId} {
-        allow read, write: if isOwner(userId);
+    // Online Submissions: Result submissions uploaded by students directly
+    match /submissions/{submissionId} {
+      allow read, write: if true;
+    }
+
+    // User accounts if authenticated
+    match /users/{userId} {
+      allow read, write: if true;
+      match /{allChildren=**} {
+        allow read, write: if true;
       }
     }
   }
